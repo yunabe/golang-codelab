@@ -17,7 +17,7 @@ var (
 func readWithScanner() {
 	f, err := os.Open(*input)
 	if err != nil {
-	 	log.Fatal(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 	s := bufio.NewScanner(f)
@@ -34,7 +34,7 @@ func readWithScanner() {
 func readWithReader() {
 	f, err := os.Open(*input)
 	if err != nil {
-	 	log.Fatal(err)
+		log.Fatal(err)
 	}
 	defer f.Close()
 	r := bufio.NewReader(f)

@@ -7,14 +7,14 @@ import (
 
 type person struct {
 	name string
-	age int
+	age  int
 }
 
 type byAge []person
 
-func (a byAge)  Len() int { return len(a) }
-func (a byAge)  Less(i, j int) bool { return a[i].age < a[j].age }
-func (a byAge)  Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a byAge) Len() int           { return len(a) }
+func (a byAge) Less(i, j int) bool { return a[i].age < a[j].age }
+func (a byAge) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 func main() {
 	people := []person{
