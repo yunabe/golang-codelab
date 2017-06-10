@@ -6,7 +6,7 @@ package unittest
 // To run this unit test, execute:
 // * go test github.com/yunabe/golang-codelab/unittest
 // * go test github.com/yunabe/golang-codelab/unittest -run ^TestIntSumStructured$ -v
-// * Run other options, read the link above.
+// * To learn other options, read the link above.
 
 import (
 	"bufio"
@@ -19,14 +19,6 @@ import (
 	"testing"
 )
 
-func IntSum(args ...int) int {
-	sum := 0
-	for _, arg := range args {
-		sum += arg
-	}
-	return sum
-}
-
 func TestIntSum(t *testing.T) {
 	// golang does not support `assert` functions in its unit test library.
 	var sum int
@@ -37,7 +29,7 @@ func TestIntSum(t *testing.T) {
 }
 
 func TestIntSumStructured(t *testing.T) {
-	// Unlike other languages, golang encourage you to write structured uni tests.
+	// Unlike other languages, golang encourages you to write structured unit tests.
 	tests := []struct {
 		input []int
 		want  int
