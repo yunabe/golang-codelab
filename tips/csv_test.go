@@ -1,26 +1,16 @@
-package main
+package tips
 
 import (
 	"encoding/csv"
-	"flag"
 	"fmt"
 	"io"
-	"log"
 	"os"
+	"reflect"
 	"strconv"
+	"testing"
 )
 
-var (
-	inputPath = flag.String("input", "", "Input Path")
-)
-
-// Person holds the content of CSV.
-type Person struct {
-	Name string
-	Age  int32
-}
-
-func readCSV(path string) (persons []Person, err error) {
+func readCSVFromFile(path string) (persons []person, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open %s: %v", path, err)
@@ -39,20 +29,24 @@ func readCSV(path string) (persons []Person, err error) {
 		if l := len(row); l != 2 {
 			return nil, fmt.Errorf("The row size must be 2 but got %d at line %d", l, lineno)
 		}
-		age, err := strconv.ParseInt(row[1], 0, 32)
+		age, err := strconv.Atoi(row[1])
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse %q as an integer", row[1])
 		}
-		persons = append(persons, Person{Name: row[0], Age: int32(age)})
+		persons = append(persons, person{name: row[0], age: int(age)})
 	}
 	return persons, nil
 }
 
-func main() {
-	flag.Parse()
-
-	_, err := readCSV(*inputPath)
+func TestReadCSV(t *testing.T) {
+	persons, err := readCSVFromFile("testdata/example.csv")
 	if err != nil {
-		log.Fatal(err)
+		t.Error(err)
+	}
+	if !reflect.DeepEqual(persons, []person{
+		{name: "Alice", age: 20},
+		{name: "Bob", age: 23},
+	}) {
+		t.Error("Unexpected result: ", persons)
 	}
 }
