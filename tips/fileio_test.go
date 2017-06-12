@@ -3,6 +3,7 @@ package tips
 import (
 	"bufio"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -15,6 +16,7 @@ import (
 // - You do not need to wrap f with bufio.Reader because bufio.Scanner also has
 //   an internal buffer to read the file content efficiently.
 func readLinesByScanner(path string) (lines []string, err error) {
+	// Use os.Open to open a file for read.
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -109,5 +111,106 @@ func TestReadLinesByReader(t *testing.T) {
 		if !reflect.DeepEqual(expect, lines) {
 			t.Errorf("Expected %v but got %v", expect, lines)
 		}
+	}
+}
+
+func TestReadUtils(t *testing.T) {
+	func() {
+		// ioutil.ReadFile read the entire file content as []byte.
+		// There is no such function like ioutil.ReadFileString.
+		bin, err := ioutil.ReadFile("testdata/example0.txt")
+		if err != nil {
+			t.Errorf("Failed to open a file with ioutil.ReadFile: %v", err)
+		}
+		str := string(bin)
+		if str != "apple\nbanana \n cat\ndog\n" {
+			t.Errorf("Unexpected data was read from example0.txt")
+		}
+	}()
+	func() {
+		// ioutil.ReadAll reads the entire content from io.Reader as []byte.
+		f, err := os.Open("testdata/example0.txt")
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		defer func() {
+			if err := f.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		bin, err := ioutil.ReadAll(f)
+		if err != nil {
+			t.Errorf("Failed to read a file with ioutil.ReadAll: %v", err)
+			return
+		}
+		str := string(bin)
+		if str != "apple\nbanana \n cat\ndog\n" {
+			t.Errorf("Unexpected data was read from example0.txt")
+		}
+	}()
+}
+
+func removeTmpTxt(t *testing.T) {
+	if err := os.RemoveAll("testdata/tmp.txt"); err != nil {
+		t.Error(err)
+	}
+}
+
+// An example to show how to use bufio.Writer.
+// bufio.Write is Java's BufferedWriter in Go.
+func TestBufioWriter(t *testing.T) {
+	defer removeTmpTxt(t)
+
+	// Use os.Create to open a file for write.
+	f, err := os.Create("testdata/tmp.txt")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	w := bufio.NewWriter(f)
+	// It's okay to ignore the first return value (# of chars written) in WriteString.
+	_, err = w.WriteString("Hello bufio.Writer.WriterString!")
+	if err != nil {
+		t.Error(err)
+	}
+	// It's okay to ignore the first return value in bufio.Writer.Write too.
+	_, err = w.Write([]byte("Hello bufio.Writer.Writer!"))
+	if err != nil {
+		t.Error(err)
+	}
+	// DO NOT FORGET TO FLUSH bufio.Writer!
+	// If you forget to call Flush, no data is actually written to the file.
+	// Even worse, no runtime error is reported for that :{
+	if err := w.Flush(); err != nil {
+		t.Error(err)
+	}
+
+	// Check the content of the file.
+	b, err := ioutil.ReadFile("testdata/tmp.txt")
+	if err != nil {
+		t.Error(err)
+	}
+	str := string(b)
+	if str != "Hello bufio.Writer.WriterString!Hello bufio.Writer.Writer!" {
+		t.Errorf("Unexpected content: %q", str)
+	}
+}
+
+func TestWriteUtils(t *testing.T) {
+	defer removeTmpTxt(t)
+
+	err := ioutil.WriteFile("testdata/tmp.txt", []byte("Hello ioutil.WriteFile"), 0666)
+	if err != nil {
+		t.Error(err)
+	}
+	// Check the content of the file.
+	b, err := ioutil.ReadFile("testdata/tmp.txt")
+	if err != nil {
+		t.Error(err)
+	}
+	str := string(b)
+	if str != "Hello ioutil.WriteFile" {
+		t.Errorf("Unexpected content: %q", str)
 	}
 }
