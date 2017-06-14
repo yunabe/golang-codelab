@@ -1,5 +1,8 @@
 package tips
 
+// Reflection in Go:
+// https://golang.org/pkg/reflect/
+
 import (
 	"reflect"
 	"testing"
@@ -117,7 +120,7 @@ func TestReflectStruct(t *testing.T) {
 		t.Errorf("Unexpected value: %d", vf1.Int())
 	}
 	// fields of struct are not settable.
-	if vf0.CanSet() || vf1.CanSet(){
+	if vf0.CanSet() || vf1.CanSet() {
 		t.Error("CanSet of all fields must return false")
 	}
 
@@ -147,4 +150,47 @@ func TestReflectStructPointer(t *testing.T) {
 	}
 	// This panics "using value obtained using unexported field".
 	// v.Elem().Field(0).SetString("Bob")
+}
+
+func TestReflectFunc(t *testing.T) {
+	sum := func(x int, y int32) float32 {
+		return float32(x + int(y))
+	}
+	var inter interface{} = sum
+	ty := reflect.TypeOf(inter)
+	if ty.Kind() != reflect.Func {
+		t.Errorf("Unexpected kind: %v", ty.Kind())
+		return
+	}
+	// Types of arguments and return values.
+	if ty.NumIn() != 2 {
+		t.Errorf("Unexpected NumIn() = %v", ty.NumIn())
+	}
+	if ty.NumOut() != 1 {
+		t.Errorf("Unexpected NumOut() = %v", ty.NumOut())
+	}
+	if ty.In(0).Kind() != reflect.Int {
+		t.Errorf("Unexpected first arg type: %v", ty.In(0).Kind())
+	}
+	if ty.Out(0).Kind() != reflect.Float32 {
+		t.Errorf("Unexpected first arg type: %v", ty.Out(0).Kind())
+	}
+
+	// Invoke
+	v := reflect.ValueOf(inter)
+	returns := v.Call([]reflect.Value{
+		reflect.ValueOf(12),
+		reflect.ValueOf(int32(34)),
+	})
+	if len(returns) != 1 {
+		t.Errorf("Unexpected size of slice was returned: %d", len(returns))
+		return
+	}
+	f := returns[0].Float()
+	if f != 46.0 {
+		t.Errorf("Unexpected return value: %f", f)
+	}
+
+	// Call panics if arguments are invalid.
+	// v.Call([]reflect.Value{})
 }
