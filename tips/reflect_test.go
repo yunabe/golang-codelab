@@ -63,7 +63,7 @@ func TestReflectIntPointer(t *testing.T) {
 func TestReflectStruct(t *testing.T) {
 	type entry struct {
 		name string
-		Age  int
+		Age  int `myattr:"myvalue"`
 	}
 	e := entry{name: "Alice", Age: 13}
 
@@ -76,7 +76,7 @@ func TestReflectStruct(t *testing.T) {
 		t.Errorf("Unexpected NumField(): %d", ty.NumField())
 		return
 	}
-	f0 := ty.Field(0)
+	var f0 reflect.StructField = ty.Field(0)
 	if f0.Name != "name" || f0.Type.Kind() != reflect.String {
 		t.Errorf("Unexpected field attrs: name = %q, type = %s", f0.Name, f0.Type)
 	}
@@ -84,7 +84,13 @@ func TestReflectStruct(t *testing.T) {
 	if f1.Name != "Age" || f1.Type.Kind() != reflect.Int {
 		t.Errorf("Unexpected field attrs: name = %q, type = %s", f1.Name, f1.Type)
 	}
+	// How to retrieve struct field tags.
+	// https://golang.org/pkg/reflect/#StructTag
+	if f1.Tag.Get("myattr") != "myvalue" {
+		t.Errorf("Unexpected tag value: %q", f1.Tag.Get("myattr"))
+	}
 
+	// Value of struct.
 	v := reflect.ValueOf(e)
 	if v.Type() != ty {
 		t.Errorf("Expected %v but got %v", ty, v.Type())
@@ -93,7 +99,7 @@ func TestReflectStruct(t *testing.T) {
 		t.Errorf("Unexpected NumField(): %d", v.NumField())
 		return
 	}
-	vf0 := v.Field(0)
+	var vf0 reflect.Value = v.Field(0)
 	if vf0.Type().Kind() != reflect.String {
 		t.Errorf("Unexpected type for vf0: %v", vf0.Type())
 	}
@@ -110,10 +116,35 @@ func TestReflectStruct(t *testing.T) {
 	if vf1.Int() != 13 {
 		t.Errorf("Unexpected value: %d", vf1.Int())
 	}
+	// fields of struct are not settable.
+	if vf0.CanSet() || vf1.CanSet(){
+		t.Error("CanSet of all fields must return false")
+	}
 
 	// This panics "using value obtained using unexported field".
 	// vf0.SetString("hello")
 	//
 	// This panics with "using unaddressable value".
 	// vf1.SetInt(20)
+}
+
+func TestReflectStructPointer(t *testing.T) {
+	type entry struct {
+		name string
+		Age  int `myattr:"myvalue"`
+	}
+	p := &entry{name: "Alice", Age: 13}
+	ty := reflect.TypeOf(p)
+	if ty.Kind() != reflect.Ptr {
+		t.Errorf("Unexpected kind: %v", ty.Kind())
+		return
+	}
+	// Set field values.
+	v := reflect.ValueOf(p)
+	v.Elem().Field(1).SetInt(24)
+	if p.Age != 24 {
+		t.Errorf("Unexpected value: %v", p.Age)
+	}
+	// This panics "using value obtained using unexported field".
+	// v.Elem().Field(0).SetString("Bob")
 }
