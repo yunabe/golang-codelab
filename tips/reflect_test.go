@@ -30,6 +30,36 @@ func TestReflectInt(t *testing.T) {
 	// v.SetInt(456)
 }
 
+func TestReflectIntPointer(t *testing.T) {
+	i := 123
+	var p interface{} = &i
+	ty := reflect.TypeOf(p)
+	if ty.Kind() != reflect.Ptr {
+		t.Errorf("Expected reflect.Ptr but got %v", ty.Kind())
+		return
+	}
+	v := reflect.ValueOf(p)
+	if v.Type() != ty {
+		t.Errorf("Expected %v but got %v", ty, v.Type())
+		return
+	}
+	var ev reflect.Value = v.Elem()
+	if ev.Type().Kind() != reflect.Int {
+		t.Errorf("Expected reflect.Int but got %v", ev.Type().Kind())
+	}
+	if ev.Kind() != reflect.Int {
+		t.Errorf("Expected reflect.Int but got %v", ev.Kind())
+	}
+	if !ev.CanSet() {
+		t.Error("CanSet must return true.")
+	}
+	// Set value!
+	v.Elem().SetInt(456)
+	if i != 456 {
+		t.Errorf("Expected value: %d", i)
+	}
+}
+
 func TestReflectStruct(t *testing.T) {
 	type entry struct {
 		name string
