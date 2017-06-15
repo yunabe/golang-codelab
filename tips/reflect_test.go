@@ -152,6 +152,62 @@ func TestReflectStructPointer(t *testing.T) {
 	// v.Elem().Field(0).SetString("Bob")
 }
 
+func TestRelectEmbed(t *testing.T) {
+	type embed struct {
+		str string
+		Str string
+	}
+	type Embed struct {
+		Int     int
+		integer int
+	}
+	type entry struct {
+		F float32
+		embed
+		Embed
+		float64
+	}
+	e := entry{
+		F: 3.14,
+		embed: embed{
+			str: "hello",
+			Str: "World",
+		},
+		Embed: Embed{
+			Int:     100,
+			integer: 10,
+		},
+		float64: 12.34,
+	}
+	ty := reflect.TypeOf(e)
+	// Embeded struct are treated as fields as you may expect.
+	if ty.NumField() != 4 {
+		t.Errorf("Unexpected NumField() = %d", ty.NumField())
+		return
+	}
+	f := ty.Field(0)
+	if !(f.Name == "F" && !f.Anonymous) {
+		t.Errorf("Unexpected: %#v", f)
+	}
+	f = ty.Field(1)
+	// Anonymous is true if the field is an embedded field.
+	if !(f.Name == "embed" && f.Anonymous) {
+		t.Errorf("Unexpected: %#v", f)
+	}
+	f = ty.Field(2)
+	// Anonymous is true if the field is an embedded field.
+	if !(f.Name == "Embed" && f.Anonymous) {
+		t.Errorf("Unexpected: %#v", f)
+	}
+	f = ty.Field(3)
+	// Anonymous is true if the field is an embedded field.
+	if !(f.Name == "float64" && f.Anonymous) {
+		t.Errorf("Unexpected: %#v", f)
+	}
+
+	// TODO: Investigate Value.
+}
+
 func TestReflectFunc(t *testing.T) {
 	sum := func(x int, y int32) float32 {
 		return float32(x + int(y))
