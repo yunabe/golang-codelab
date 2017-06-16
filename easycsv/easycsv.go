@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -76,6 +77,15 @@ func (r *Reader) Loop(body interface{}) {
 		r.err = fmt.Errorf("The struct passed to Loop must not have private fields: %s", strings.Join(privates, ", "))
 		return
 	}
+
+	for {
+		rets := reflect.ValueOf(body).Call([]reflect.Value{p.Elem()})
+		err := rets[0].Interface().(error)
+		if err == Break {
+			break
+		}
+		panic("Break is not returned")
+	}
 }
 
 func (r *Reader) Read(e interface{}) bool {
@@ -93,4 +103,73 @@ func (r *Reader) Done() error {
 		}
 	}
 	return r.err
+}
+
+type rowDecoder interface {
+	decode(s []string, out reflect.Value)
+	needHeader() bool
+}
+
+func newDecoder(t reflect.Type) (rowDecoder, error) {
+	if t.Kind() != reflect.Struct {
+		return nil, errors.New("error")
+	}
+	v := reflect.New(t).Elem()
+	var unexported []string
+	for i := 0; i < v.NumField(); i++ {
+		if !v.Field(i).CanSet() {
+			unexported = append(unexported, t.Field(i).Name)
+		}
+	}
+	if unexported != nil {
+		return nil, fmt.Errorf("The struct passed to Loop must not have unexported fields: %s", strings.Join(unexported, ", "))
+	}
+	var names, indice []string
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		tag := f.Tag
+		name := tag.Get("name")
+		index := tag.Get("index")
+		if name == "" && index == "" {
+			return nil, fmt.Errorf("Please specify name or index to the struct field: %s", f.Name)
+		}
+		if name != "" && index != "" {
+			return nil, fmt.Errorf("Both name and index are specified to the struct field: %s", f.Name)
+		}
+		if name != "" {
+			names = append(names, name)
+		}
+		if index != "" {
+			indice = append(indice, index)
+		}
+	}
+	if names != nil && indice != nil {
+		return nil, fmt.Errorf("The struct has fields with name tag (%s) and index tag (%s)",
+			strings.Join(names, ", "), strings.Join(indice, ", "))
+	}
+
+	var converters []reflect.Value
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if f.Type.Kind() != reflect.Int {
+			return nil, fmt.Errorf("Unsupported type for %s: %s", f.Name, f.Type.Kind())
+		}
+		converters = append(converters, reflect.ValueOf(func(s string) (int, error) {
+			return strconv.Atoi(s)
+		}))
+	}
+
+	return &structRowDecoder{}, nil
+}
+
+type structRowDecoder struct {
+	names map[string]func(string)interface{}
+	indice map[string]func(string)interface{}
+}
+
+func (d *structRowDecoder) decode(s []string, out reflect.Value) {
+}
+
+func (d *structRowDecoder) needHeader() bool {
+	return d.names != nil
 }
