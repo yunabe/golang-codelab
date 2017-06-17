@@ -5,6 +5,7 @@ package tips
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -249,4 +250,34 @@ func TestReflectFunc(t *testing.T) {
 
 	// Call panics if arguments are invalid.
 	// v.Call([]reflect.Value{})
+}
+
+func TestInterfaceToInterface(t *testing.T) {
+	var err error
+	var i interface{} = err
+	if i != nil {
+		t.Error("An interface from a nil interface must be nil too in Go.")
+	}
+	v := reflect.ValueOf(i)
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("v.IsNil() below must panic.")
+			}
+		}()
+		// Wow, this panics!
+		v.IsNil()
+	}()
+	defer func() {
+		p := recover()
+		if p == nil {
+			t.Error("The code must panic.")
+			return
+		}
+		err := p.(error)
+		if !strings.Contains(err.Error(), "interface is nil, not error") {
+			t.Errorf("Unexpected error: %v", err)
+		}
+	}()
+	err = i.(error)
 }

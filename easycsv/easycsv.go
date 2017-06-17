@@ -66,25 +66,54 @@ func (r *Reader) Loop(body interface{}) {
 		r.err = errors.New("The struct passed to Loop must have at least one field")
 		return
 	}
-	p := reflect.New(in)
-	var privates []string
-	for i := 0; i < p.Elem().NumField(); i++ {
-		if !p.Elem().Field(i).CanSet() {
-			privates = append(privates, in.Field(i).Name)
-		}
-	}
-	if privates != nil {
-		r.err = fmt.Errorf("The struct passed to Loop must not have private fields: %s", strings.Join(privates, ", "))
+	dec, err := newDecoder(in)
+	if err != nil {
+		r.err = err
 		return
 	}
-
+	if dec.needHeader() {
+		row, err := r.reader.Read()
+		if err != nil {
+			r.err = err
+			return
+		}
+		err = dec.consumeHeader(row)
+		if err != nil {
+			r.err = err
+			return
+		}
+	}
 	for {
+		row, err := r.reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			r.err = err
+			break
+		}
+		p := reflect.New(in)
+		if err := dec.decode(row, p); err != nil {
+			r.err = err
+			break
+		}
 		rets := reflect.ValueOf(body).Call([]reflect.Value{p.Elem()})
-		err := rets[0].Interface().(error)
+		if len(rets) == 0 || rets[0].IsNil() {
+			continue
+		}
+		if rets[0].Kind() == reflect.Bool {
+			cont := rets[0].Bool()
+			if cont {
+				continue
+			} else {
+				break
+			}
+		}
+		err = rets[0].Interface().(error)
 		if err == Break {
 			break
 		}
-		panic("Break is not returned")
+		r.err = err
 	}
 }
 
@@ -98,7 +127,7 @@ func (r *Reader) Done() error {
 	}
 	r.done = true
 	if r.closer != nil {
-		if cerr := r.closer.Close(); r.err != nil {
+		if cerr := r.closer.Close(); r.err == nil {
 			r.err = cerr
 		}
 	}
@@ -106,13 +135,67 @@ func (r *Reader) Done() error {
 }
 
 type rowDecoder interface {
-	decode(s []string, out reflect.Value)
+	decode(s []string, out reflect.Value) error
 	needHeader() bool
+	consumeHeader([]string) error
+}
+
+func createConverter(field reflect.StructField, enc string) (reflect.Value, error) {
+	if field.Type.Kind() == reflect.Int {
+		return reflect.ValueOf(strconv.Atoi), nil
+	}
+	if field.Type.Kind() == reflect.Float32 {
+		return reflect.ValueOf(func(s string) (float32, error) {
+			f, err := strconv.ParseFloat(s, 32)
+			return float32(f), err
+		}), nil
+	}
+	return reflect.ValueOf(nil), fmt.Errorf("Unexpected field type for %s: %s", field.Name, field.Type)
+
+}
+
+func parseStructTag(field reflect.StructField,
+	fieldIdx int,
+	nameMap map[string]int,
+	idxMap map[int]int,
+	converters *[]reflect.Value,
+	errors *[]string) {
+	tag := field.Tag
+	name := tag.Get("name")
+	index := tag.Get("index")
+	if name == "" && index == "" {
+		*errors = append(*errors, fmt.Sprintf("Please specify name or index to the struct field: %s", field.Name))
+		return
+	}
+	if name != "" && index != "" {
+		*errors = append(*errors, fmt.Sprintf("Please specify name or index to the struct field: %s", field.Name))
+		return
+	}
+	enc := tag.Get("enc")
+	conv, err := createConverter(field, enc)
+	if err != nil {
+		*errors = append(*errors, err.Error())
+		return
+	}
+	*converters = append(*converters, conv)
+	if name != "" {
+		nameMap[name] = fieldIdx
+		return
+	}
+	i, err := strconv.Atoi(index)
+	if err != nil {
+		*errors = append(*errors, fmt.Sprintf("Failed to parse index of field %s: %q", field.Name, index))
+		return
+	}
+	idxMap[i] = fieldIdx
 }
 
 func newDecoder(t reflect.Type) (rowDecoder, error) {
 	if t.Kind() != reflect.Struct {
 		return nil, errors.New("error")
+	}
+	if t.NumField() == 0 {
+		return nil, errors.New("The struct has no field")
 	}
 	v := reflect.New(t).Elem()
 	var unexported []string
@@ -124,50 +207,77 @@ func newDecoder(t reflect.Type) (rowDecoder, error) {
 	if unexported != nil {
 		return nil, fmt.Errorf("The struct passed to Loop must not have unexported fields: %s", strings.Join(unexported, ", "))
 	}
-	var names, indice []string
-	for i := 0; i < t.NumField(); i++ {
-		f := t.Field(i)
-		tag := f.Tag
-		name := tag.Get("name")
-		index := tag.Get("index")
-		if name == "" && index == "" {
-			return nil, fmt.Errorf("Please specify name or index to the struct field: %s", f.Name)
-		}
-		if name != "" && index != "" {
-			return nil, fmt.Errorf("Both name and index are specified to the struct field: %s", f.Name)
-		}
-		if name != "" {
-			names = append(names, name)
-		}
-		if index != "" {
-			indice = append(indice, index)
-		}
-	}
-	if names != nil && indice != nil {
-		return nil, fmt.Errorf("The struct has fields with name tag (%s) and index tag (%s)",
-			strings.Join(names, ", "), strings.Join(indice, ", "))
-	}
 
+	var tagErrors []string
+	nameMap := make(map[string]int)
+	idxMap := make(map[int]int)
 	var converters []reflect.Value
 	for i := 0; i < t.NumField(); i++ {
 		f := t.Field(i)
-		if f.Type.Kind() != reflect.Int {
-			return nil, fmt.Errorf("Unsupported type for %s: %s", f.Name, f.Type.Kind())
-		}
-		converters = append(converters, reflect.ValueOf(func(s string) (int, error) {
-			return strconv.Atoi(s)
-		}))
+		parseStructTag(f, i, nameMap, idxMap, &converters, &tagErrors)
 	}
-
-	return &structRowDecoder{}, nil
+	if len(nameMap) != 0 && len(idxMap) != 0 {
+		tagErrors = append(tagErrors, "Fields with name and fields with index are mixed")
+	}
+	if tagErrors != nil {
+		return nil, errors.New(strings.Join(tagErrors, "\n"))
+	}
+	if len(converters) != t.NumField() {
+		panic("converters size mismatch")
+	}
+	if len(nameMap) != 0 {
+		idxMap = nil
+	} else {
+		nameMap = nil
+	}
+	return &structRowDecoder{
+		structType: t,
+		converters: converters,
+		names:      nameMap,
+		indice:     idxMap,
+	}, nil
 }
 
 type structRowDecoder struct {
-	names map[string]func(string)interface{}
-	indice map[string]func(string)interface{}
+	structType reflect.Type
+	converters []reflect.Value
+	names      map[string]int
+	indice     map[int]int
 }
 
-func (d *structRowDecoder) decode(s []string, out reflect.Value) {
+func (d *structRowDecoder) consumeHeader(header []string) error {
+	indice := make(map[int]int)
+	for i, col := range header {
+		idx, ok := d.names[col]
+		if !ok {
+			continue
+		}
+		indice[i] = idx
+		delete(d.names, col)
+	}
+	if len(d.names) != 0 {
+		var unused []string
+		for n := range d.names {
+			unused = append(unused, n)
+		}
+		return fmt.Errorf("%s did not appear in the first line", strings.Join(unused, ", "))
+	}
+	d.names = nil
+	return nil
+}
+
+func (d *structRowDecoder) decode(row []string, out reflect.Value) error {
+	for i, j := range d.indice {
+		rets := d.converters[j].Call([]reflect.Value{reflect.ValueOf(row[i])})
+		if len(rets) != 2 {
+			panic("converter must return two values.")
+		}
+		if !rets[1].IsNil() {
+			return rets[1].Interface().(error)
+		}
+		out.Elem().Field(j).Set(rets[0])
+	}
+	return nil
 }
 
 func (d *structRowDecoder) needHeader() bool {
