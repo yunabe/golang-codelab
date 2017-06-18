@@ -259,6 +259,9 @@ func TestInterfaceToInterface(t *testing.T) {
 		t.Error("An interface from a nil interface must be nil too in Go.")
 	}
 	v := reflect.ValueOf(i)
+	if v.IsValid() {
+		t.Error("The value of nil must not be valid")
+	}
 	func() {
 		defer func() {
 			if recover() == nil {
@@ -268,16 +271,18 @@ func TestInterfaceToInterface(t *testing.T) {
 		// Wow, this panics!
 		v.IsNil()
 	}()
-	defer func() {
-		p := recover()
-		if p == nil {
-			t.Error("The code must panic.")
-			return
-		}
-		err := p.(error)
-		if !strings.Contains(err.Error(), "interface is nil, not error") {
-			t.Errorf("Unexpected error: %v", err)
-		}
+	func() {
+		defer func() {
+			p := recover()
+			if p == nil {
+				t.Error("The code must panic.")
+				return
+			}
+			err := p.(error)
+			if !strings.Contains(err.Error(), "interface is nil, not error") {
+				t.Errorf("Unexpected error: %v", err)
+			}
+		}()
+		err = i.(error)
 	}()
-	err = i.(error)
 }

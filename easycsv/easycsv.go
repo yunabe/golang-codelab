@@ -17,6 +17,11 @@ type Reader struct {
 	closer io.Closer
 	done   bool
 	err    error
+
+	// Used from Read.
+	lineno    int
+	firstLine []string
+	cur       []string
 }
 
 func NewReader(r io.Reader) *Reader {
@@ -30,6 +35,19 @@ func NewReadCloser(r io.ReadCloser) *Reader {
 		reader: csv.NewReader(r),
 		closer: r,
 	}
+}
+
+func (r *Reader) readLine() error {
+	line, err := r.reader.Read()
+	if err != nil {
+		return err
+	}
+	r.cur = line
+	r.lineno++
+	if r.lineno == 1 {
+		r.firstLine = line
+	}
+	return nil
 }
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
@@ -57,16 +75,21 @@ func (r *Reader) Loop(body interface{}) {
 		return
 	}
 	in := v.In(0)
-	if in.Kind() != reflect.Struct {
+	var inStruct reflect.Type
+	if in.Kind() == reflect.Struct {
+		inStruct = in
+	} else if in.Kind() == reflect.Ptr && in.Elem().Kind() == reflect.Struct {
+		inStruct = in.Elem()
+	} else {
 		r.err = fmt.Errorf("The function passed to Loop must receive a struct")
 		return
 	}
-	numf := in.NumField()
+	numf := inStruct.NumField()
 	if numf == 0 {
 		r.err = errors.New("The struct passed to Loop must have at least one field")
 		return
 	}
-	dec, err := newDecoder(in)
+	dec, err := newDecoder(inStruct)
 	if err != nil {
 		r.err = err
 		return
@@ -85,19 +108,20 @@ func (r *Reader) Loop(body interface{}) {
 	}
 	for {
 		row, err := r.reader.Read()
-		if err == io.EOF {
-			break
-		}
 		if err != nil {
 			r.err = err
 			break
 		}
-		p := reflect.New(in)
+		p := reflect.New(inStruct)
 		if err := dec.decode(row, p); err != nil {
 			r.err = err
 			break
 		}
-		rets := reflect.ValueOf(body).Call([]reflect.Value{p.Elem()})
+		arg := p
+		if in.Kind() == reflect.Struct {
+			arg = p.Elem()
+		}
+		rets := reflect.ValueOf(body).Call([]reflect.Value{arg})
 		if len(rets) == 0 || rets[0].IsNil() {
 			continue
 		}
@@ -118,12 +142,47 @@ func (r *Reader) Loop(body interface{}) {
 }
 
 func (r *Reader) Read(e interface{}) bool {
+	if r.err != nil {
+		return false
+	}
+	t := reflect.TypeOf(e)
+	if t.Kind() != reflect.Ptr {
+		r.err = fmt.Errorf("The argument of Read must be a pointer to a struct or a pointer to a slice, but got %v", t.Kind())
+		return false
+	}
+	if t.Elem().Kind() != reflect.Struct && t.Elem().Kind() != reflect.Slice {
+		r.err = fmt.Errorf("The argument of Read must be a pointer to a struct or a pointer to a slice, but got a pointer to %v", t.Elem().Kind())
+		return false
+	}
+	decoder, err := newDecoder(t.Elem())
+	if err != nil {
+		r.err = err
+		return false
+	}
+	if decoder.needHeader() {
+		if r.lineno == 0 {
+			r.readLine()
+		}
+		decoder.consumeHeader(r.firstLine)
+	}
+	err = r.readLine()
+	if err == io.EOF {
+		return false
+	}
+	decoder.decode(r.cur, reflect.ValueOf(e))
 	return true
+}
+
+func (r *Reader) nonEOFError() error {
+	if r.err == nil || r.err == io.EOF {
+		return nil
+	}
+	return r.err
 }
 
 func (r *Reader) Done() error {
 	if r.done {
-		return r.err
+		return r.nonEOFError()
 	}
 	r.done = true
 	if r.closer != nil {
@@ -131,7 +190,7 @@ func (r *Reader) Done() error {
 			r.err = cerr
 		}
 	}
-	return r.err
+	return r.nonEOFError()
 }
 
 type rowDecoder interface {
@@ -150,8 +209,15 @@ func createConverter(field reflect.StructField, enc string) (reflect.Value, erro
 			return float32(f), err
 		}), nil
 	}
+	if field.Type.Kind() == reflect.String {
+		return reflect.ValueOf(func(s string) (string, error) {
+			return s, nil
+		}), nil
+	}
+	if field.Type.Kind() == reflect.Bool {
+		return reflect.ValueOf(strconv.ParseBool), nil
+	}
 	return reflect.ValueOf(nil), fmt.Errorf("Unexpected field type for %s: %s", field.Name, field.Type)
-
 }
 
 func parseStructTag(field reflect.StructField,
