@@ -130,6 +130,40 @@ func TestLoopPointer(t *testing.T) {
 	}
 }
 
+func TestLoopWithName(t *testing.T) {
+	f := bytes.NewReader([]byte("int,float,str\n10,1.2,alpha\n20,2.3,beta\n30,3.4,gamma"))
+	r := NewReader(f)
+	var ints []int
+	var floats []float32
+	var strs []string
+	r.Loop(func(e struct {
+		Int   int     `name:"int"`
+		Float float32 `name:"float"`
+		Str   string  `name:"str"`
+	}) error {
+		ints = append(ints, e.Int)
+		floats = append(floats, e.Float)
+		strs = append(strs, e.Str)
+		return nil
+	})
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	expectedInt := []int{10, 20, 30}
+	expectedFloat := []float32{1.2, 2.3, 3.4}
+	expectedStr := []string{"alpha", "beta", "gamma"}
+	if !reflect.DeepEqual(expectedInt, ints) {
+		t.Errorf("Expected %#v but got %#v", expectedInt, ints)
+	}
+	if !reflect.DeepEqual(expectedFloat, floats) {
+		t.Errorf("Expected %#v but got %#v", expectedFloat, floats)
+	}
+	if !reflect.DeepEqual(expectedStr, strs) {
+		t.Errorf("Expected %#v but got %#v", expectedStr, strs)
+	}
+}
+
 func TestRead(t *testing.T) {
 	f := bytes.NewReader([]byte("10,1.2\n20,2.3\n30,3.4"))
 	r := NewReader(f)
@@ -138,6 +172,33 @@ func TestRead(t *testing.T) {
 	var e struct {
 		Int   int     `index:"0"`
 		Float float32 `index:"1"`
+	}
+	for r.Read(&e) {
+		ints = append(ints, e.Int)
+		floats = append(floats, e.Float)
+	}
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	expectedInt := []int{10, 20, 30}
+	expectedFloat := []float32{1.2, 2.3, 3.4}
+	if !reflect.DeepEqual(expectedInt, ints) {
+		t.Errorf("Unexpected %#v but got %#v", expectedInt, ints)
+	}
+	if !reflect.DeepEqual(expectedFloat, floats) {
+		t.Errorf("Unexpected %#v but got %#v", expectedFloat, floats)
+	}
+}
+
+func TestReadWithName(t *testing.T) {
+	f := bytes.NewReader([]byte("a,b\n10,1.2\n20,2.3\n30,3.4"))
+	r := NewReader(f)
+	var ints []int
+	var floats []float32
+	var e struct {
+		Int   int     `name:"a"`
+		Float float32 `name:"b"`
 	}
 	for r.Read(&e) {
 		ints = append(ints, e.Int)

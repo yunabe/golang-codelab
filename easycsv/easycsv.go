@@ -13,12 +13,14 @@ import (
 var Break = errors.New("break")
 
 type Reader struct {
-	reader *csv.Reader
+	// csv.Reader. To read content from csv, use readLine.
+	csv    *csv.Reader
 	closer io.Closer
 	done   bool
-	err    error
+	// An error occurred while processing csv. io.EOF is stored when csv is reached to the end.
+	err error
 
-	// Used from Read.
+	// Used from readLine.
 	lineno    int
 	firstLine []string
 	cur       []string
@@ -26,19 +28,19 @@ type Reader struct {
 
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
-		reader: csv.NewReader(r),
+		csv: csv.NewReader(r),
 	}
 }
 
 func NewReadCloser(r io.ReadCloser) *Reader {
 	return &Reader{
-		reader: csv.NewReader(r),
+		csv:    csv.NewReader(r),
 		closer: r,
 	}
 }
 
 func (r *Reader) readLine() error {
-	line, err := r.reader.Read()
+	line, err := r.csv.Read()
 	if err != nil {
 		return err
 	}
@@ -95,25 +97,27 @@ func (r *Reader) Loop(body interface{}) {
 		return
 	}
 	if dec.needHeader() {
-		row, err := r.reader.Read()
-		if err != nil {
-			r.err = err
-			return
+		if r.lineno == 0 {
+			err := r.readLine()
+			if err != nil {
+				r.err = err
+				return
+			}
 		}
-		err = dec.consumeHeader(row)
+		err = dec.consumeHeader(r.firstLine)
 		if err != nil {
 			r.err = err
 			return
 		}
 	}
 	for {
-		row, err := r.reader.Read()
+		err := r.readLine()
 		if err != nil {
 			r.err = err
 			break
 		}
 		p := reflect.New(inStruct)
-		if err := dec.decode(row, p); err != nil {
+		if err := dec.decode(r.cur, p); err != nil {
 			r.err = err
 			break
 		}
@@ -169,6 +173,7 @@ func (r *Reader) Read(e interface{}) bool {
 	if err == io.EOF {
 		return false
 	}
+	// TODO: Reset with zero.
 	decoder.decode(r.cur, reflect.ValueOf(e))
 	return true
 }
@@ -321,6 +326,7 @@ func (d *structRowDecoder) consumeHeader(header []string) error {
 		indice[i] = idx
 		delete(d.names, col)
 	}
+	d.indice = indice
 	if len(d.names) != 0 {
 		var unused []string
 		for n := range d.names {
