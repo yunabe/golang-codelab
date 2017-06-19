@@ -184,6 +184,22 @@ func TestLoopWithName(t *testing.T) {
 	}
 }
 
+func TestLoopIndexOutOfRange(t *testing.T) {
+	f := bytes.NewReader([]byte("10,1.2\n20,2.3"))
+	r := NewReader(f)
+	r.Loop(func(e struct {
+		Int   int     `index:"0"`
+		Float float32 `index:"2"`
+	}) error {
+		t.Error("panic")
+		return nil
+	})
+	err := r.Done()
+	if err == nil || err.Error() != "Accessed index 2 though the size of the row is 2" {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
 func TestLoopWithSlice(t *testing.T) {
 	f := bytes.NewReader([]byte("10,20\n30,40"))
 	r := NewReader(f)
@@ -256,6 +272,22 @@ func TestReadWithName(t *testing.T) {
 	}
 }
 
+func TestReadIndexOutOfRange(t *testing.T) {
+	f := bytes.NewReader([]byte("10,1.2\n20,2.3"))
+	r := NewReader(f)
+	var e struct {
+		Int   int     `index:"0"`
+		Float float32 `index:"2"`
+	}
+	for r.Read(&e) {
+		t.Errorf("r.Read returned true unexpectedly with %#v", e)
+	}
+	err := r.Done()
+	if err == nil || err.Error() != "Accessed index 2 though the size of the row is 2" {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
 func TestReadWithSlice(t *testing.T) {
 	f := bytes.NewReader([]byte("10,20\n30,40"))
 	r := NewReader(f)
@@ -287,78 +319,32 @@ func TestNewDecoder(t *testing.T) {
 	}
 }
 
-/*
-func TestNewDecoder2(t *testing.T) {
-	type mystruct struct {
-		Name int `index:"1"`
-		Age  int `index:"2"`
-	}
-	d, err := newDecoder(reflect.TypeOf(mystruct{}))
-	if err != nil {
-		t.Error(err)
-	}
-	if d.needHeader() {
-		t.Error("Unexpected")
-		return
-	}
-	var row mystruct
-	err = d.decode([]string{"10", "30"}, reflect.ValueOf(&row))
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	t.Errorf("%#v", row)
-}*/
-
-/*
-func Test3(t *testing.T) {
-	f := bytes.NewReader([]byte("hello"))
-	r := NewReader(f)
-	var names []string
-	r.Loop(func(e []string) error {
-		for _, c := range e {
-			names = append(names, c)
-		}
-		return nil
-	})
-	err := r.Done()
-	if err != nil {
-		t.Error(err)
+func TestNewDecoder_IndexAndName(t *testing.T) {
+	_, err := newDecoder(reflect.TypeOf(struct {
+		Name int `name:"name"`
+		Age  int `index:"0"`
+	}{}))
+	if err == nil || err.Error() != "Fields with name and fields with index are mixed" {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
-func Test4(t *testing.T) {
-	f := bytes.NewReader([]byte("hello"))
-	r := NewReader(f)
-	var names []string
-	r.Loop(func(e []string) error {
-		for _, c := range e {
-			names = append(names, c)
-		}
-		return nil
-	})
-	err := r.Done()
-	if err != nil {
-		t.Error(err)
+func TestNewDecoder_NoStructTag(t *testing.T) {
+	_, err := newDecoder(reflect.TypeOf(struct {
+		Name int
+		Age  int
+	}{}))
+	if err == nil || err.Error() != "Please specify name or index to the struct field: Name\nPlease specify name or index to the struct field: Age" {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
-func Test1(t *testing.T) {
-	f := bytes.NewReader([]byte("hello"))
-	r := NewReader(f)
-	var names []string
-	var e struct {
-		Name string
-	}
-	for r.Read(&e) {
-		if e.Name == "" {
-			break
-		}
-		names = append(names, e.Name)
-	}
-	err := r.Done()
-	if err != nil {
-		t.Error(err)
+func TestNewDecoder_InvalidIndex(t *testing.T) {
+	_, err := newDecoder(reflect.TypeOf(struct {
+		Name int `index:"-1"`
+		Age  int `index:"hello"`
+	}{}))
+	if err == nil || err.Error() != "Failed to parse index of field Name: \"-1\"\nFailed to parse index of field Age: \"hello\"" {
+		t.Errorf("Unexpected error: %q", err)
 	}
 }
-*/

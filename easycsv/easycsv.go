@@ -184,8 +184,9 @@ func (r *Reader) Read(e interface{}) bool {
 		return false
 	}
 	// TODO: Reset with zero.
-	decoder.decode(r.cur, reflect.ValueOf(e))
-	return true
+	// TODO: Append the line number to the error message.
+	r.err = decoder.decode(r.cur, reflect.ValueOf(e))
+	return r.err == nil
 }
 
 func (r *Reader) nonEOFError() error {
@@ -253,7 +254,7 @@ func parseStructTag(field reflect.StructField,
 		return
 	}
 	i, err := strconv.Atoi(index)
-	if err != nil {
+	if err != nil || i < 0 {
 		*errors = append(*errors, fmt.Sprintf("Failed to parse index of field %s: %q", field.Name, index))
 		return
 	}
@@ -375,6 +376,9 @@ func (d *structRowDecoder) consumeHeader(header []string) error {
 
 func (d *structRowDecoder) decode(row []string, out reflect.Value) error {
 	for i, j := range d.indice {
+		if i >= len(row) {
+			return fmt.Errorf("Accessed index %d though the size of the row is %d", i, len(row))
+		}
 		rets := d.converters[j].Call([]reflect.Value{reflect.ValueOf(row[i])})
 		if len(rets) != 2 {
 			panic("converter must return two values.")
