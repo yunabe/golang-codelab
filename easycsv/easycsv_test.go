@@ -172,15 +172,14 @@ func TestLoopWithSlice(t *testing.T) {
 		rows = append(rows, row)
 		return nil
 	})
-	// TODO: Support slice in Loop.
-	// if err := r.Done(); err != nil {
-	// 	t.Error(err)
-	// 	return
-	// }
-	// expected := [][]int{{10, 20}, {30, 40}}
-	// if !reflect.DeepEqual(rows, expected) {
-	// 	t.Errorf("Expected %#v but got %#v", expected, rows)
-	// }
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	expected := [][]int{{10, 20}, {30, 40}}
+	if !reflect.DeepEqual(rows, expected) {
+		t.Errorf("Expected %#v but got %#v", expected, rows)
+	}
 }
 
 func TestRead(t *testing.T) {

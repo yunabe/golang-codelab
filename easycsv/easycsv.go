@@ -82,14 +82,18 @@ func (r *Reader) Loop(body interface{}) {
 		inStruct = in
 	} else if in.Kind() == reflect.Ptr && in.Elem().Kind() == reflect.Struct {
 		inStruct = in.Elem()
+	} else if in.Kind() == reflect.Slice {
+		inStruct = in
 	} else {
-		r.err = fmt.Errorf("The function passed to Loop must receive a struct")
+		r.err = fmt.Errorf("The function passed to Loop must receive a struct, a pointer to a struct or a slice")
 		return
 	}
-	numf := inStruct.NumField()
-	if numf == 0 {
-		r.err = errors.New("The struct passed to Loop must have at least one field")
-		return
+	if in.Kind() != reflect.Slice {
+		numf := inStruct.NumField()
+		if numf == 0 {
+			r.err = errors.New("The struct passed to Loop must have at least one field")
+			return
+		}
 	}
 	dec, err := newDecoder(inStruct)
 	if err != nil {
@@ -122,7 +126,7 @@ func (r *Reader) Loop(body interface{}) {
 			break
 		}
 		arg := p
-		if in.Kind() == reflect.Struct {
+		if in.Kind() == reflect.Struct || in.Kind() == reflect.Slice {
 			arg = p.Elem()
 		}
 		rets := reflect.ValueOf(body).Call([]reflect.Value{arg})
@@ -142,6 +146,7 @@ func (r *Reader) Loop(body interface{}) {
 			break
 		}
 		r.err = err
+		// TODO: break here to terminate the loop on error.
 	}
 }
 
