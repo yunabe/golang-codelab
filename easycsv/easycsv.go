@@ -39,17 +39,19 @@ func NewReadCloser(r io.ReadCloser) *Reader {
 	}
 }
 
-func (r *Reader) readLine() error {
+// readLine reads a line from r.csv and update r.err, r.cur, r.lineno and r.firstLine.
+// readLine does not update r.err. io.EOF is returned when csv reached to the end.
+func (r *Reader) readLine() {
 	line, err := r.csv.Read()
 	if err != nil {
-		return err
+		r.err = err
+		return
 	}
 	r.cur = line
 	r.lineno++
 	if r.lineno == 1 {
 		r.firstLine = line
 	}
-	return nil
 }
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
@@ -102,9 +104,9 @@ func (r *Reader) Loop(body interface{}) {
 	}
 	if dec.needHeader() {
 		if r.lineno == 0 {
-			err := r.readLine()
-			if err != nil {
-				r.err = err
+			// Loop quits immediately if the csv is empty.
+			r.readLine()
+			if r.err != nil {
 				return
 			}
 		}
@@ -115,9 +117,8 @@ func (r *Reader) Loop(body interface{}) {
 		}
 	}
 	for {
-		err := r.readLine()
-		if err != nil {
-			r.err = err
+		r.readLine()
+		if r.err != nil {
 			break
 		}
 		p := reflect.New(inStruct)
@@ -170,12 +171,16 @@ func (r *Reader) Read(e interface{}) bool {
 	}
 	if decoder.needHeader() {
 		if r.lineno == 0 {
+			// Loop quits immediately if the csv is empty.
 			r.readLine()
+			if r.err != nil {
+				return false
+			}
 		}
 		decoder.consumeHeader(r.firstLine)
 	}
-	err = r.readLine()
-	if err == io.EOF {
+	r.readLine()
+	if r.err != nil {
 		return false
 	}
 	// TODO: Reset with zero.
@@ -190,19 +195,22 @@ func (r *Reader) nonEOFError() error {
 	return r.err
 }
 
+// Done returns the first non-EOF error that was encountered by the Reader.
+// Done also closes the internal Closer if the Reader is instantiated with NewReaderCloser.
 func (r *Reader) Done() error {
 	if r.done {
 		return r.nonEOFError()
 	}
 	r.done = true
 	if r.closer != nil {
-		if cerr := r.closer.Close(); r.err == nil {
+		if cerr := r.closer.Close(); r.err == nil || r.err == io.EOF {
 			r.err = cerr
 		}
 	}
 	return r.nonEOFError()
 }
 
+// DoneDefer do the same thing as Done does. But it outputs an error to the argument.
 func (r *Reader) DoneDefer(err *error) {
 	e := r.Done()
 	if *err == nil && e != nil {

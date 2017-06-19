@@ -2,6 +2,7 @@ package easycsv
 
 import (
 	"errors"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,6 +20,7 @@ func TestLoopNil(t *testing.T) {
 }
 
 type fakeCloser struct {
+	reader io.Reader
 	err    error
 	closed bool
 }
@@ -28,8 +30,8 @@ func (c *fakeCloser) Close() error {
 	return c.err
 }
 
-func (*fakeCloser) Read([]byte) (int, error) {
-	return 0, nil
+func (c *fakeCloser) Read(p []byte) (int, error) {
+	return c.reader.Read(p)
 }
 
 func TestCloser(t *testing.T) {
@@ -45,6 +47,24 @@ func TestCloser(t *testing.T) {
 }
 
 func TestCloserWithError(t *testing.T) {
+	c := &fakeCloser{
+		reader: bytes.NewBufferString(""),
+	}
+	c.err = errors.New("Close Error")
+	r := NewReadCloser(c)
+	var unused []string
+	if ok := r.Read(&unused); ok {
+		t.Errorf("r.Read() must return false for a empty input")
+	}
+	if err := r.Done(); err != c.err {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if !c.closed {
+		t.Error("c is not closed.")
+	}
+}
+
+func TestCloserEOFAndError(t *testing.T) {
 	c := &fakeCloser{}
 	c.err = errors.New("Close Error")
 	r := NewReadCloser(c)
