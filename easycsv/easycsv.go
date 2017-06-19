@@ -26,12 +26,15 @@ type Reader struct {
 	cur       []string
 }
 
+// NewReader returns a new Reader to read CSV from r.
 func NewReader(r io.Reader) *Reader {
 	return &Reader{
 		csv: csv.NewReader(r),
 	}
 }
 
+// NewReaderCloser returns a new Reader to read CSV from r.
+// Reader instantiated with NewReadCloser closes r automatically when Done() is called.
 func NewReadCloser(r io.ReadCloser) *Reader {
 	return &Reader{
 		csv:    csv.NewReader(r),
@@ -56,6 +59,16 @@ func (r *Reader) readLine() {
 
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
+// Loop reads from r until an error or EOF and invokes body everytime it reads a line.
+// body should be a function which has no return value or returns bool or error.
+// If body returns false or an error, Loop stops reading r.
+// If body does not have a return value, Loop does not stop until an error or EOF.
+// If body returns error and you want to terminate Loop without reporting an error, returns easycsv.Break in body.
+//
+// Also, body must receive one argument. The argument must be a pointer to a struct, a struct or a pointer to a slice.
+// The line of csv is automatically converted to the struct or the slice based on the rule described above.
+//
+// Loop returns nothing. Use Done() to check an error encountered in Loop.
 func (r *Reader) Loop(body interface{}) {
 	if r.err != nil {
 		return
@@ -143,11 +156,13 @@ func (r *Reader) Loop(body interface{}) {
 			}
 		}
 		err = rets[0].Interface().(error)
-		if err == Break {
+		if err != nil {
+			if err != Break {
+				r.err = err
+			}
 			break
 		}
 		r.err = err
-		// TODO: break here to terminate the loop on error.
 	}
 }
 
@@ -212,6 +227,8 @@ func (r *Reader) Done() error {
 }
 
 // DoneDefer do the same thing as Done does. But it outputs an error to the argument.
+// DoneDefer does not overwrite an error if an error is already stored in err.
+// DoneDefer is useful to call Done from defer statement.
 func (r *Reader) DoneDefer(err *error) {
 	e := r.Done()
 	if *err == nil && e != nil {
