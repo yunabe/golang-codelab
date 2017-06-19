@@ -164,6 +164,25 @@ func TestLoopWithName(t *testing.T) {
 	}
 }
 
+func TestLoopWithSlice(t *testing.T) {
+	f := bytes.NewReader([]byte("10,20\n30,40"))
+	r := NewReader(f)
+	var rows [][]int
+	r.Loop(func(row []int) error {
+		rows = append(rows, row)
+		return nil
+	})
+	// TODO: Support slice in Loop.
+	// if err := r.Done(); err != nil {
+	// 	t.Error(err)
+	// 	return
+	// }
+	// expected := [][]int{{10, 20}, {30, 40}}
+	// if !reflect.DeepEqual(rows, expected) {
+	// 	t.Errorf("Expected %#v but got %#v", expected, rows)
+	// }
+}
+
 func TestRead(t *testing.T) {
 	f := bytes.NewReader([]byte("10,1.2\n20,2.3\n30,3.4"))
 	r := NewReader(f)
@@ -215,6 +234,24 @@ func TestReadWithName(t *testing.T) {
 	}
 	if !reflect.DeepEqual(expectedFloat, floats) {
 		t.Errorf("Unexpected %#v but got %#v", expectedFloat, floats)
+	}
+}
+
+func TestReadWithSlice(t *testing.T) {
+	f := bytes.NewReader([]byte("10,20\n30,40"))
+	r := NewReader(f)
+	var rows [][]int
+	var row []int
+	for r.Read(&row) {
+		rows = append(rows, row)
+	}
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	expected := [][]int{{10, 20}, {30, 40}}
+	if !reflect.DeepEqual(rows, expected) {
+		t.Errorf("Expected %#v but got %#v", expected, rows)
 	}
 }
 

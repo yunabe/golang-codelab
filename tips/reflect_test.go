@@ -252,6 +252,18 @@ func TestReflectFunc(t *testing.T) {
 	// v.Call([]reflect.Value{})
 }
 
+func TestReflectSlice(t *testing.T) {
+	slicePtr := reflect.New(reflect.SliceOf(reflect.TypeOf(int(0))))
+	for i := 0; i < 10; i++ {
+		slicePtr.Elem().Set(reflect.Append(slicePtr.Elem(), reflect.ValueOf(i*i)))
+	}
+	s := slicePtr.Elem().Interface().([]int)
+	expected := []int{0, 1, 4, 9, 16, 25, 36, 49, 64, 81}
+	if !reflect.DeepEqual(s, expected) {
+		t.Errorf("Expected %v but got %v", expected, s)
+	}
+}
+
 func TestInterfaceToInterface(t *testing.T) {
 	var err error
 	var i interface{} = err

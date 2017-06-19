@@ -198,31 +198,17 @@ func (r *Reader) Done() error {
 	return r.nonEOFError()
 }
 
+func (r *Reader) DoneDefer(err *error) {
+	e := r.Done()
+	if *err == nil && e != nil {
+		*err = e
+	}
+}
+
 type rowDecoder interface {
 	decode(s []string, out reflect.Value) error
 	needHeader() bool
 	consumeHeader([]string) error
-}
-
-func createConverter(field reflect.StructField, enc string) (reflect.Value, error) {
-	if field.Type.Kind() == reflect.Int {
-		return reflect.ValueOf(strconv.Atoi), nil
-	}
-	if field.Type.Kind() == reflect.Float32 {
-		return reflect.ValueOf(func(s string) (float32, error) {
-			f, err := strconv.ParseFloat(s, 32)
-			return float32(f), err
-		}), nil
-	}
-	if field.Type.Kind() == reflect.String {
-		return reflect.ValueOf(func(s string) (string, error) {
-			return s, nil
-		}), nil
-	}
-	if field.Type.Kind() == reflect.Bool {
-		return reflect.ValueOf(strconv.ParseBool), nil
-	}
-	return reflect.ValueOf(nil), fmt.Errorf("Unexpected field type for %s: %s", field.Name, field.Type)
 }
 
 func parseStructTag(field reflect.StructField,
@@ -243,7 +229,7 @@ func parseStructTag(field reflect.StructField,
 		return
 	}
 	enc := tag.Get("enc")
-	conv, err := createConverter(field, enc)
+	conv, err := createDefaultConverter(field, enc)
 	if err != nil {
 		*errors = append(*errors, err.Error())
 		return
@@ -262,9 +248,45 @@ func parseStructTag(field reflect.StructField,
 }
 
 func newDecoder(t reflect.Type) (rowDecoder, error) {
-	if t.Kind() != reflect.Struct {
-		return nil, errors.New("error")
+	if t.Kind() == reflect.Struct {
+		return newStructDecoder(t)
+	} else if t.Kind() == reflect.Slice {
+		return newSliceDecoder(t)
 	}
+	panic("newDecoder must be called with struct or slice.")
+}
+
+func newSliceDecoder(t reflect.Type) (rowDecoder, error) {
+	elem := t.Elem()
+	c := createDefaultConverterFromType(elem)
+	if !c.IsValid() {
+		return nil, fmt.Errorf("Failed to create a converter for %v", t)
+	}
+	return &sliceRowDecoder{
+		elemType:  elem,
+		converter: c,
+	}, nil
+}
+
+type sliceRowDecoder struct {
+	elemType  reflect.Type
+	converter reflect.Value
+}
+
+func (d *sliceRowDecoder) needHeader() bool             { return false }
+func (d *sliceRowDecoder) consumeHeader([]string) error { return nil }
+func (d *sliceRowDecoder) decode(s []string, out reflect.Value) error {
+	slicePtr := reflect.New(reflect.SliceOf(d.elemType))
+	for _, e := range s {
+		rets := d.converter.Call([]reflect.Value{reflect.ValueOf(e)})
+		// TODO: Handle error.
+		slicePtr.Elem().Set(reflect.Append(slicePtr.Elem(), rets[0]))
+	}
+	out.Elem().Set(slicePtr.Elem())
+	return nil
+}
+
+func newStructDecoder(t reflect.Type) (rowDecoder, error) {
 	if t.NumField() == 0 {
 		return nil, errors.New("The struct has no field")
 	}
