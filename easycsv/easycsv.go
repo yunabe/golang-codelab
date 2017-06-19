@@ -5,11 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
 )
 
+// Break is the error returned by the callback passed to Loop to terminate the loop.
 var Break = errors.New("break")
 
 type Reader struct {
@@ -40,6 +42,15 @@ func NewReadCloser(r io.ReadCloser) *Reader {
 		csv:    csv.NewReader(r),
 		closer: r,
 	}
+}
+
+// NewReaderFile returns a new Reader to read CSV from the file path.
+func NewReaderFile(path string) *Reader {
+	f, err := os.Open(path)
+	if err == nil {
+		return NewReadCloser(f)
+	}
+	return &Reader{err: err}
 }
 
 // readLine reads a line from r.csv and update r.err, r.cur, r.lineno and r.firstLine.
