@@ -166,6 +166,9 @@ func (r *Reader) Loop(body interface{}) {
 	}
 }
 
+// Read reads one line from csv and store values in the line to e.
+// The argument e must be a pointer to a struct or a pointer to a slice.
+// Read returns false when it encounters an error or EOF.
 func (r *Reader) Read(e interface{}) bool {
 	if r.err != nil {
 		return false
