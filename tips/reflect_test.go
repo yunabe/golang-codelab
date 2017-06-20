@@ -298,3 +298,38 @@ func TestInterfaceToInterface(t *testing.T) {
 		err = i.(error)
 	}()
 }
+
+func TestNilAndCall(t *testing.T) {
+	errorType := reflect.TypeOf((*error)(nil)).Elem()
+	if errorType.Name() != "error" {
+		t.Errorf("Unexpected errorType: %v", errorType)
+	}
+
+	fn := func(e error) error {
+		if e != nil {
+			panic("Call this function with nil!")
+		}
+		return nil
+	}
+	v := reflect.ValueOf(fn)
+
+	// NG
+	// arg := reflect.ValueOf(nil)
+	arg := reflect.New(errorType).Elem()
+	rets := v.Call([]reflect.Value{arg})
+	if len(rets) != 1 {
+		t.Errorf("Unexpected len(ret): %d", len(rets))
+		return
+	}
+	ret := rets[0]
+	// Unlike the test above, a nil interface in the return values is not invalid and has a type.
+	if !ret.IsValid() {
+		t.Error("ret is invalid unexpectedly")
+	}
+	if !ret.IsNil() {
+		t.Error("ret.IsNil() returned false unexpectedly")
+	}
+	if ret.Type() != errorType {
+		t.Errorf("Unexpected type: %v", ret.Type())
+	}
+}
