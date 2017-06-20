@@ -356,6 +356,40 @@ func TestReadWithSlice(t *testing.T) {
 	}
 }
 
+func TestReadAllStruct(t *testing.T) {
+	f := bytes.NewReader([]byte("10,2.3\n30,4.5"))
+	r := NewReader(f)
+	type entry struct {
+		Int   int     `index:"0"`
+		Float float32 `index:"1"`
+	}
+	var s []entry
+	r.ReadAll(&s)
+	expected := []entry{{Int: 10, Float: 2.3}, {Int: 30, Float: 4.5}}
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	if !reflect.DeepEqual(expected, s) {
+		t.Errorf("Expected %v but got %v", expected, s)
+	}
+}
+
+func TestReadAllSlice(t *testing.T) {
+	f := bytes.NewReader([]byte("10,20\n30,40"))
+	r := NewReader(f)
+	var s [][]int
+	r.ReadAll(&s)
+	if err := r.Done(); err != nil {
+		t.Error(err)
+		return
+	}
+	expected := [][]int{{10, 20}, {30, 40}}
+	if !reflect.DeepEqual(expected, s) {
+		t.Errorf("Expected %v but got %v", expected, s)
+	}
+}
+
 func TestNewDecoder(t *testing.T) {
 	d, err := newDecoder(reflect.TypeOf(struct {
 		Name int `name:"name"`

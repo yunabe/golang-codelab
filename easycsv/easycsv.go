@@ -223,6 +223,57 @@ func (r *Reader) Read(e interface{}) bool {
 	return r.err == nil
 }
 
+// ReadAll reads all rows from csv and store it into the slice s.
+// s must be a pointer to a slice of a struct (e.g. *[]entry) or a pointer to a slice of primitive types (e.g. *[][]int).
+func (r *Reader) ReadAll(s interface{}) {
+	// TODO: Consolidate code with Read.
+	if s == nil {
+		r.err = errors.New("The argument of ReadAll must not be nil.")
+		return
+	}
+	t := reflect.TypeOf(s)
+	if t.Kind() != reflect.Ptr || t.Elem().Kind() != reflect.Slice {
+		r.err = fmt.Errorf("The argument of ReadAll must be a pointer to a slice of a slice or a pointer to a slice of a struct, but got %v", t)
+		return
+	}
+	et := t.Elem().Elem()
+	if et.Kind() != reflect.Struct && et.Kind() != reflect.Slice {
+		r.err = fmt.Errorf("The argument of ReadAll must be a pointer to a slice of a slice or a pointer to a slice of a struct, but got %v", t)
+		return
+	}
+	decoder, err := newDecoder(et)
+	if err != nil {
+		r.err = err
+		return
+	}
+	if decoder.needHeader() {
+		if r.lineno == 0 {
+			// Loop quits immediately if the csv is empty.
+			r.readLine()
+			if r.err != nil {
+				return
+			}
+		}
+		decoder.consumeHeader(r.firstLine)
+	}
+	for {
+		r.readLine()
+		if r.err != nil {
+			return
+		}
+		p := reflect.New(et)
+		v := reflect.ValueOf(s).Elem()
+		err := decoder.decode(r.cur, p)
+		v.Set(reflect.Append(v, p.Elem()))
+		if err != nil {
+			r.err = err
+			break
+		}
+		// TODO: Reset with zero.
+		// TODO: Append the line number to the error message.
+	}
+}
+
 func (r *Reader) nonEOFError() error {
 	if r.err == nil || r.err == io.EOF {
 		return nil
