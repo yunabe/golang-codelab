@@ -22,6 +22,7 @@ type Reader struct {
 	done   bool
 	// An error occurred while processing csv. io.EOF is stored when csv is reached to the end.
 	err error
+	opt Option
 
 	// Used from readLine.
 	lineno    int
@@ -29,27 +30,48 @@ type Reader struct {
 	cur       []string
 }
 
-// NewReader returns a new Reader to read CSV from r.
-func NewReader(r io.Reader) *Reader {
-	return &Reader{
-		csv: csv.NewReader(r),
+func newCSVReader(r io.Reader, opt Option) *csv.Reader {
+	cr := csv.NewReader(r)
+	if opt.Comma != 0 {
+		cr.Comma = opt.Comma
 	}
+	if opt.Comment != 0 {
+		cr.Comment = opt.Comment
+	}
+	return cr
+}
+
+// NewReader returns a new Reader to read CSV from r.
+func NewReader(r io.Reader, opts ...Option) *Reader {
+	opt, err := mergeOptions(opts)
+	if err != nil {
+		return &Reader{err: err}
+	}
+	rd := Reader{
+		csv: newCSVReader(r, opt),
+		opt: opt,
+	}
+	return &rd
 }
 
 // NewReaderCloser returns a new Reader to read CSV from r.
 // Reader instantiated with NewReadCloser closes r automatically when Done() is called.
-func NewReadCloser(r io.ReadCloser) *Reader {
+func NewReadCloser(r io.ReadCloser, opts ...Option) *Reader {
+	opt, err := mergeOptions(opts)
+	if err != nil {
+		return &Reader{err: err}
+	}
 	return &Reader{
-		csv:    csv.NewReader(r),
+		csv:    newCSVReader(r, opt),
 		closer: r,
 	}
 }
 
 // NewReaderFile returns a new Reader to read CSV from the file path.
-func NewReaderFile(path string) *Reader {
+func NewReaderFile(path string, opts ...Option) *Reader {
 	f, err := os.Open(path)
 	if err == nil {
-		return NewReadCloser(f)
+		return NewReadCloser(f, opts...)
 	}
 	return &Reader{err: err}
 }
