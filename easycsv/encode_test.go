@@ -3,6 +3,7 @@ package easycsv
 import (
 	"bytes"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -19,12 +20,28 @@ func TestConverterInt(t *testing.T) {
 	}
 }
 
-func TestConverterInvalid(t *testing.T) {
+func TestConverterInvalidWithSlice(t *testing.T) {
 	r := NewReader(bytes.NewBufferString("hello"))
 	var row []int
 	ok := r.Read(&row)
-	// TODO: Fix Reade to return false.
-	if !ok {
-		t.Error("Read returned false unexpectedly")
+	if ok {
+		t.Error("Read returned true unexpectedly")
+	}
+	if err := r.Done(); err == nil || !strings.Contains(err.Error(), "parsing \"hello\"") {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
+func TestConverterInvalidWithStruct(t *testing.T) {
+	r := NewReader(bytes.NewBufferString("hello"))
+	var row struct {
+		Int int `index:"0"`
+	}
+	ok := r.Read(&row)
+	if ok {
+		t.Error("Read returned true unexpectedly")
+	}
+	if err := r.Done(); err == nil || !strings.Contains(err.Error(), "parsing \"hello\"") {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }

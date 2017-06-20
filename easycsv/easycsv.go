@@ -217,7 +217,6 @@ func (r *Reader) Read(e interface{}) bool {
 	if r.err != nil {
 		return false
 	}
-	// TODO: Reset with zero.
 	// TODO: Append the line number to the error message.
 	r.err = decoder.decode(r.cur, reflect.ValueOf(e))
 	return r.err == nil
@@ -269,7 +268,6 @@ func (r *Reader) ReadAll(s interface{}) {
 			r.err = err
 			break
 		}
-		// TODO: Reset with zero.
 		// TODO: Append the line number to the error message.
 	}
 }
@@ -380,7 +378,12 @@ func (d *sliceRowDecoder) decode(s []string, out reflect.Value) error {
 	slicePtr := reflect.New(reflect.SliceOf(d.elemType))
 	for _, e := range s {
 		rets := d.converter.Call([]reflect.Value{reflect.ValueOf(e)})
-		// TODO: Handle error.
+		if len(rets) != 2 {
+			panic("converter must return two values.")
+		}
+		if !rets[1].IsNil() {
+			return rets[1].Interface().(error)
+		}
 		slicePtr.Elem().Set(reflect.Append(slicePtr.Elem(), rets[0]))
 	}
 	out.Elem().Set(slicePtr.Elem())
@@ -462,6 +465,7 @@ func (d *structRowDecoder) consumeHeader(header []string) error {
 }
 
 func (d *structRowDecoder) decode(row []string, out reflect.Value) error {
+	// TODO: Reset with zero first.
 	for i, j := range d.indice {
 		if i >= len(row) {
 			return fmt.Errorf("Accessed index %d though the size of the row is %d", i, len(row))
