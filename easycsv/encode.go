@@ -9,7 +9,10 @@ import (
 func createDefaultConverterFromType(t reflect.Type) reflect.Value {
 	switch t.Kind() {
 	case reflect.Int:
-		return reflect.ValueOf(strconv.Atoi)
+		return reflect.ValueOf(func(s string) (int, error) {
+			i, err := strconv.ParseInt(s, 0, 0)
+			return int(i), err
+		})
 	case reflect.Int8:
 		return reflect.ValueOf(func(s string) (int8, error) {
 			i, err := strconv.ParseInt(s, 0, 8)
@@ -29,6 +32,11 @@ func createDefaultConverterFromType(t reflect.Type) reflect.Value {
 		return reflect.ValueOf(func(s string) (int64, error) {
 			i, err := strconv.ParseInt(s, 0, 64)
 			return int64(i), err
+		})
+	case reflect.Uint:
+		return reflect.ValueOf(func(s string) (uint, error) {
+			i, err := strconv.ParseUint(s, 0, 0)
+			return uint(i), err
 		})
 	case reflect.Uint8:
 		return reflect.ValueOf(func(s string) (uint8, error) {
