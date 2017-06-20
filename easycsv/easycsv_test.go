@@ -103,6 +103,17 @@ func TestCloserDontOverwriteError(t *testing.T) {
 	}
 }
 
+func TestNewReaderFile(t *testing.T) {
+	r := NewReaderFile("testing/notexist.csv")
+	ok := r.Read(nil)
+	if ok {
+		t.Error("r.Read returned true unexpectedly")
+	}
+	if err := r.Done(); err == nil || !strings.Contains(err.Error(), "no such file") {
+		t.Errorf("Unexpected error: %v", err)
+	}
+}
+
 func TestLoop(t *testing.T) {
 	f := bytes.NewReader([]byte("10,1.2,alpha\n20,2.3,beta\n30,3.4,gamma"))
 	r := NewReader(f)
