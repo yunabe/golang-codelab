@@ -14,6 +14,7 @@ import (
 // Break is the error returned by the callback passed to Loop to terminate the loop.
 var Break = errors.New("break")
 
+// Reader provides a convenient interface for reading csv.
 type Reader struct {
 	// csv.Reader. To read content from csv, use readLine.
 	csv    *csv.Reader
@@ -182,6 +183,10 @@ func (r *Reader) Loop(body interface{}) {
 // Read returns false when it encounters an error or EOF.
 func (r *Reader) Read(e interface{}) bool {
 	if r.err != nil {
+		return false
+	}
+	if e == nil {
+		r.err = errors.New("The argument of Loop must not be nil.")
 		return false
 	}
 	t := reflect.TypeOf(e)

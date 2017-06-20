@@ -19,6 +19,19 @@ func TestLoopNil(t *testing.T) {
 	}
 }
 
+func TestReadNil(t *testing.T) {
+	f := bytes.NewReader([]byte(""))
+	r := NewReader(f)
+	ok := r.Read(nil)
+	if ok {
+		t.Error("Loop returned true unexpectedly")
+		return
+	}
+	if err := r.Done(); err == nil || !strings.Contains(err.Error(), "must not be nil.") {
+		t.Errorf("Unexpected eror: %v", err)
+	}
+}
+
 type fakeCloser struct {
 	reader io.Reader
 	err    error
