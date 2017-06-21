@@ -349,9 +349,24 @@ func parseStructTag(field reflect.StructField,
 		*errors = append(*errors, fmt.Sprintf("Please specify name or index to the struct field: %s", field.Name))
 		return
 	}
-	// enc := tag.Get("enc")
-	// TODO: Use enc.
-	conv := createDefaultConverterFromType(field.Type)
+	var conv interface{}
+	enc := tag.Get("enc")
+	if enc != "" {
+		pre := predefinedDecoders[enc]
+		// TODO: Test these errors.
+		if pre != nil {
+			conv = pre(field.Type)
+			if conv == nil {
+				*errors = append(*errors, fmt.Sprintf("Encoding %q does not support %v", enc, field.Type))
+			}
+		} else {
+			*errors = append(*errors, fmt.Sprintf("Encoding %q is not defined", enc))
+			return
+		}
+	}
+	if conv == nil {
+		conv = createDefaultConverter(field.Type)
+	}
 	if conv == nil {
 		*errors = append(*errors, fmt.Sprintf("Unexpected field type for %s: %s", field.Name, field.Type))
 		return
@@ -380,7 +395,7 @@ func newDecoder(t reflect.Type) (rowDecoder, error) {
 
 func newSliceDecoder(t reflect.Type) (rowDecoder, error) {
 	elem := t.Elem()
-	c := createDefaultConverterFromType(elem)
+	c := createDefaultConverter(elem)
 	if c == nil {
 		return nil, fmt.Errorf("Failed to create a converter for %v", t)
 	}
