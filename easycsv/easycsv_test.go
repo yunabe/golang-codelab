@@ -402,17 +402,20 @@ func TestReadAllSlice(t *testing.T) {
 }
 
 func TestEncTag(t *testing.T) {
-	f := bytes.NewReader([]byte("10,10\n20,20"))
+	f := bytes.NewReader([]byte("10,10,010\n20,20,020"))
 	r := NewReader(f)
 	var ints0 []int
 	var ints1 []int
+	var ints2 []int
 	var e struct {
 		Int0 int `index:"0" enc:"hex"`
 		Int1 int `index:"1" enc:"oct"`
+		Int2 int `index:"2" enc:"deci"`
 	}
 	for r.Read(&e) {
 		ints0 = append(ints0, e.Int0)
 		ints1 = append(ints1, e.Int1)
+		ints2 = append(ints2, e.Int2)
 	}
 	if err := r.Done(); err != nil {
 		t.Error(err)
@@ -420,11 +423,15 @@ func TestEncTag(t *testing.T) {
 	}
 	expectedInt0 := []int{16, 32}
 	expectedInt1 := []int{8, 16}
+	expectedInt2 := []int{10, 20}
 	if !reflect.DeepEqual(expectedInt0, ints0) {
 		t.Errorf("Unexpected %#v but got %#v", expectedInt0, ints0)
 	}
 	if !reflect.DeepEqual(expectedInt1, ints1) {
 		t.Errorf("Unexpected %#v but got %#v", expectedInt1, ints1)
+	}
+	if !reflect.DeepEqual(expectedInt2, ints2) {
+		t.Errorf("Unexpected %#v but got %#v", expectedInt2, ints2)
 	}
 }
 

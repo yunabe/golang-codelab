@@ -12,6 +12,9 @@ var predefinedDecoders = map[string]func(t reflect.Type) interface{}{
 	"oct": func(t reflect.Type) interface{} {
 		return createIntConverter(t, 8)
 	},
+	"deci": func(t reflect.Type) interface{} {
+		return createIntConverter(t, 10)
+	},
 }
 
 func createIntConverter(t reflect.Type, base int) interface{} {
