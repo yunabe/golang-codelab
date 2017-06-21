@@ -35,6 +35,20 @@ func ExampleReader_loop() {
 	// Output: &{Alice 10}&{Bob 20}
 }
 
+func ExampleReader_readAll() {
+	r := NewReaderFile("testdata/sample.csv")
+	var entry []struct {
+		Name string `index:"0"`
+		Age  int    `index:"1"`
+	}
+	r.ReadAll(&entry)
+	if err := r.Done(); err != nil {
+		log.Fatalf("Failed to read a CSV file: %v", err)
+	}
+	fmt.Println(entry)
+	// Output: [{Alice 10} {Bob 20}]
+}
+
 func ExampleReader_tSV() {
 	r := NewReaderFile("testdata/sample.tsv", Option{
 		Comma: '\t',
