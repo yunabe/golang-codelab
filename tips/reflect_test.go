@@ -337,16 +337,21 @@ func TestNilAndCall(t *testing.T) {
 type myInt int
 
 func TestReflectNamedType(t *testing.T) {
-	a := myInt(3)
+	var a interface{} = myInt(3)
 	va := reflect.ValueOf(a)
 	ta := reflect.TypeOf(a)
+	intType := reflect.TypeOf(0)
 	if ta.String() != "tips.myInt" {
 		t.Errorf("ta.String() must be \"tips.myInt\", but got %q", ta.String())
+	}
+	if ta == intType {
+		t.Errorf("typeof(myInt) == typeof(int) must be false")
 	}
 	if ta.Name() != "myInt" {
 		t.Errorf("ta.Name() must be \"myInt\", but got %q", ta.Name())
 	}
 	if va.Kind() != reflect.Int {
+		// Although typeof(myInt) != typeof(int), Kind() returns reflect.Int.
 		t.Error("va.Kind() must be reflect.Int")
 	}
 	if va.Int() != 3 {
