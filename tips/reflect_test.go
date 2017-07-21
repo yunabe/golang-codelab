@@ -333,3 +333,34 @@ func TestNilAndCall(t *testing.T) {
 		t.Errorf("Unexpected type: %v", ret.Type())
 	}
 }
+
+type myInt int
+
+func TestReflectNamedType(t *testing.T) {
+	a := myInt(3)
+	va := reflect.ValueOf(a)
+	ta := reflect.TypeOf(a)
+	if ta.String() != "tips.myInt" {
+		t.Errorf("ta.String() must be \"tips.myInt\", but got %q", ta.String())
+	}
+	if ta.Name() != "myInt" {
+		t.Errorf("ta.Name() must be \"myInt\", but got %q", ta.Name())
+	}
+	if va.Kind() != reflect.Int {
+		t.Error("va.Kind() must be reflect.Int")
+	}
+	if va.Int() != 3 {
+		t.Errorf("va.Int() must be 3, but got %v", va.Int())
+	}
+}
+
+func TestReflectAddr(t *testing.T) {
+	v := reflect.ValueOf(10)
+	if v.CanAddr() {
+		t.Errorf("v.CanAddr() must return false")
+	}
+	v = reflect.New(reflect.TypeOf(0))
+	if !v.Elem().CanAddr() {
+		t.Errorf("v.Elem().CanAddr() must return true")
+	}
+}
