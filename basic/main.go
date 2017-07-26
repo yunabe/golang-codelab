@@ -4,4 +4,5 @@ func main() {
 	basicMain()
 	funcMain()
 	concurentMain()
+	playWithMyStruct()
 }
