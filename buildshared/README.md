@@ -6,8 +6,12 @@ Files in this directory demostrate how to build shared libraries in Go and how t
 # Commands
 ``` shell
 go install -buildmode=shared -pkgdir `pwd`/cache -linkshared github.com/yunabe/golang-codelab/buildshared/lib0
+go install -buildmode=shared -pkgdir `pwd`/cache -linkshared github.com/yunabe/golang-codelab/buildshared/lib1
+go install -buildmode=shared -pkgdir `pwd`/cache -linkshared github.com/yunabe/golang-codelab/buildshared/lib2
+go install -buildmode=shared -pkgdir `pwd`/cache -linkshared github.com/yunabe/golang-codelab/buildshared/lib3
 go build -pkgdir `pwd`/cache -linkshared -o buildshareddemo github.com/yunabe/golang-codelab/buildshared/main
 ldd ./buildshareddemo
+./buildshareddemo
 ```
 
 ## Notes
