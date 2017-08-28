@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"unsafe"
 )
 
 func TestReflectInt(t *testing.T) {
@@ -367,5 +368,63 @@ func TestReflectAddr(t *testing.T) {
 	v = reflect.New(reflect.TypeOf(0))
 	if !v.Elem().CanAddr() {
 		t.Errorf("v.Elem().CanAddr() must return true")
+	}
+}
+
+type childField struct {
+	s string
+}
+
+type structWithUnexported struct {
+	i     int8
+	f     float32
+	child childField
+}
+
+func expectUnexportedError(t *testing.T) {
+	r := recover()
+	if r == nil {
+		t.Errorf("Expected panic but no panic was thrown")
+	}
+	if msg, _ := r.(string); !strings.Contains(msg, "unexported field") {
+		t.Errorf("Unexpected error: %v", r)
+	}
+}
+
+func TestStructUnexportedField(t *testing.T) {
+	u := structWithUnexported{12, 3.4, childField{"hello"}}
+	v := reflect.ValueOf(&u).Elem()
+
+	// You can read unexported fields with reflect.
+	if v.Field(0).Kind() != reflect.Int8 {
+		t.Errorf("Expected %v but got %v", reflect.Int8, v.Field(0).Kind())
+	}
+	i := int8(v.Field(0).Int())
+	if i != u.i {
+		t.Errorf("Expected %v but got %v", u.i, i)
+	}
+	s := v.FieldByName("child").FieldByName("s").String()
+	if s != u.child.s {
+		t.Errorf("Expected %q but got %q", u.child.s, s)
+	}
+
+	// But you can not use Interface() to read unexported fields for some reasons.
+	func() {
+		defer expectUnexportedError(t)
+		v.FieldByName("i").Interface()
+	}()
+
+	// You can not set unexported fields normally.
+	func() {
+		defer expectUnexportedError(t)
+		v.FieldByName("f").SetFloat(5.6)
+	}()
+	// But, you can set values to unexported fields with unsafe.
+	// Ref: https://stackoverflow.com/questions/42664837/access-unexported-fields-in-golang-reflect
+	ff := v.FieldByName("f")
+	newF := float32(7.8)
+	reflect.NewAt(ff.Type(), unsafe.Pointer(ff.UnsafeAddr())).Elem().SetFloat(float64(newF))
+	if u.f != newF {
+		t.Errorf("Expected %v but got %v", newF, u.f)
 	}
 }
