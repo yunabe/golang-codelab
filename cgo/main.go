@@ -1,12 +1,9 @@
 package main
 
-import (
-	// #include <math.h>
-	"C"
-	"fmt"
-)
+import "fmt"
+import "github.com/yunabe/golang-codelab/cgo/cmath"
 
 func main() {
-	fmt.Println(C.cos(0))
-	fmt.Println(C.sin(0))
+	fmt.Println(cmath.Sin(0))
+	fmt.Println(cmath.Cos(0))
 }
